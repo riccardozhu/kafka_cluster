@@ -1,0 +1,76 @@
+version: '3'  # Specifica la versione del file docker-compose
+
+services:
+  # Servizio ZooKeeper: necessario per la gestione del cluster Kafka
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.3.0  # Usa l'immagine ufficiale Confluent per ZooKeeper
+    container_name: zookeeper  # Nome del container
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181  # Porta su cui ZooKeeper accetterà connessioni client
+      ZOOKEEPER_TICK_TIME: 2000  # Unità di tempo base in millisecondi usata da ZooKeeper
+
+  # Primo broker Kafka
+  kafka1:
+    image: confluentinc/cp-kafka:7.3.0  # Usa l'immagine ufficiale Confluent per Kafka
+    container_name: kafka1
+    ports:
+      - "9092:9092"  # Mappa la porta 9092 del container alla porta 9092 dell'host
+    depends_on:
+      - zookeeper  # Assicura che ZooKeeper sia avviato prima di questo servizio
+    environment:
+      KAFKA_BROKER_ID: 1  # ID unico per questo broker nel cluster
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'  # Connessione a ZooKeeper
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT  # Mappa dei protocolli di sicurezza
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka1:29092  # Listeners pubblicizzati per client esterni e interni
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3  # Fattore di replicazione per il topic degli offset
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2  # Numero minimo di repliche in-sync per il log delle transazioni
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3  # Fattore di replicazione per il log delle transazioni
+
+  # Secondo broker Kafka (configurazione simile al primo, ma con ID e porte diverse)
+  kafka2:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: kafka2
+    ports:
+      - "9093:9093"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9093,PLAINTEXT_INTERNAL://kafka2:29093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+
+  # Terzo broker Kafka (configurazione simile ai precedenti, ma con ID e porte diverse)
+  kafka3:
+    image: confluentinc/cp-kafka:7.3.0
+    container_name: kafka3
+    ports:
+      - "9094:9094"
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9094,PLAINTEXT_INTERNAL://kafka3:29094
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+
+  # Interfaccia utente Kafka di Provectus
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest  # Usa l'ultima versione dell'immagine Kafka UI di Provectus
+    container_name: kafka-ui
+    ports:
+      - "8080:8080"  # Mappa la porta 8080 del container alla porta 8080 dell'host
+    depends_on:
+      - kafka1
+      - kafka2
+      - kafka3  # Assicura che tutti i broker Kafka siano avviati prima di questo servizio
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local  # Nome del cluster Kafka
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka1:29092,kafka2:29093,kafka3:29094  # Elenco dei broker Kafka
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181  # Connessione a ZooKeeper
